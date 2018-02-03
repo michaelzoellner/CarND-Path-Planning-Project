@@ -8,6 +8,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "spline.h"
 
 using namespace std;
 
@@ -199,8 +200,32 @@ int main() {
   	map_waypoints_dx.push_back(d_x);
   	map_waypoints_dy.push_back(d_y);
   }
+  
+  // start in lane 1;
+  int lane = 1; // STARTING AT ZERO = LEFT LANE!!!
+  
+  // lane width
+  const double lane_width = 4; // meters
+  
+  // lane count
+  int lane_count = 3;
+  
+  // Maximum speed
+  double max_vel = 49.5 * 1.61 / 3.6; // meters per second
+  
+  // Maximum acceleration
+  double aMax = 7.0; // meters per second^2
+  
+  // Current reference speed
+  double ref_vel = 0.0; // meters per second, initial speed is zero
+  
+  // Figures to prevent too frequent lane changes
+  double minTimeInLane = 2.0;
+  double timeInLane = 0.0;
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&max_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+          &map_waypoints_dx,&map_waypoints_dy,&lane,&lane_width,&aMax,
+          &ref_vel,&lane_count,&minTimeInLane,&timeInLane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -237,13 +262,277 @@ int main() {
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
-          	json msgJson;
+                int prev_size = previous_path_x.size();
+                
+                if (prev_size > 0)
+                {
+                  car_s = end_path_s;
+                }
+                
+                // Start with the maximum allowed speed
+                // meters per second, aim for sonic speed when the road is clear :)
+                vector<double> maxSpeedCausedByTraffic = {330.0, 330.0, 330.0};
+                
+                // Start with the minimum required speed
+                // meters per second, zero when the road is clear
+                vector<double> minSpeedCausedByTraffic = {0.0, 0.0, 0.0};
+                
+                // Comfortable acceleration
+                double aMaxComf = 3.0; // meters per second^2
+                
+                // Minimum safety distance in seconds
+                double minDistInS = 1.8; // seconds
+                
+                // Go over each car to calculate min and max speeds
+                for (int i=0; i<sensor_fusion.size(); i++)
+                {
+                  double vx = sensor_fusion[i][3];
+                  double vy = sensor_fusion[i][4];
+                  double v_traffic = sqrt(vx * vx + vy * vy); // should be in meters per second
+                  double check_car_s = sensor_fusion[i][5];
+                  
+                  // Project where the car is at the end of the previous path
+                  check_car_s+=((double)prev_size*.02*v_traffic);
+                  
+                  // Calculate distance to car
+                  double dist_traffic = check_car_s-car_s;
+                  
+                  // Check if vehicle is within 100 m
+                  if((dist_traffic < 50) && (dist_traffic > -50))
+                  {
+                    // Vehicle id
+                    int traf_id = sensor_fusion[i][0];
+                    
+                    // Calculate the lane for the car
+                    float d = sensor_fusion[i][6];
+                    d = (d - 0.5 * lane_width)/lane_width + 0.5;
+                    int lane_traffic = (int)d;
+                    
+                    if (dist_traffic > 0)
+                    {
+                      // Analytic considerations lead to the maximum allowed 
+                      // velocity depending on speed and distance of the traffic
+                      // ahead.
+                      double maxSpeedForID;
+                      double sqrterm = 2*aMaxComf*(dist_traffic-minDistInS*v_traffic);
+                      if (sqrterm>0)
+                        maxSpeedForID = v_traffic + sqrt(sqrterm);
+                      else
+                        maxSpeedForID = v_traffic - sqrt(-sqrterm);
+                      
+                      // printf("Lane %d, ID %d, dist %3.1f m, vel %3.1f m/s, maxvel %3.1f m/s \n",lane_traffic,traf_id,dist_traffic,v_traffic,maxSpeedForID);
+                      
+                      // Avoid hitting other vehicle even if velocity consideration is safe
+                      if (dist_traffic < 4)
+                        maxSpeedForID = 0.0;
+                      
+                      maxSpeedCausedByTraffic[lane_traffic] = min(
+                              maxSpeedCausedByTraffic[lane_traffic],maxSpeedForID);
+                    }
+                    else
+                    {
+                      // Analytic considerations lead to the maximum allowed 
+                      // velocity depending on speed and distance of the traffic
+                      // ahead.
+                      double minSpeedForID;
+                      double sqrterm = aMaxComf*aMaxComf*minDistInS*minDistInS + 2*aMaxComf*(-dist_traffic) - 2*aMaxComf*minDistInS*v_traffic;
+                      
+                      if (sqrterm>0)
+                        minSpeedForID = v_traffic -aMaxComf*minDistInS + sqrt(sqrterm);
+                      else
+                        minSpeedForID = v_traffic -aMaxComf*minDistInS + sqrt(-sqrterm);
+                      
+                      // printf("Lane %d, ID %d, dist %3.1f m, vel %3.1f m/s, minvel %3.1f m/s \n",lane_traffic,traf_id,dist_traffic,v_traffic,minSpeedForID);
+                      
+                      // Avoid cutting other vehicle even if velocity consideration is safe
+                      if (dist_traffic > -4)
+                        minSpeedForID = 330.0;
+                      
+                      minSpeedCausedByTraffic[lane_traffic] = max(
+                              minSpeedCausedByTraffic[lane_traffic],minSpeedForID);
+                    }
+                  }
+                }
+                
+                printf("Max speed in lanes is %3.1f, %3.1f, %3.1f \n",maxSpeedCausedByTraffic[0],maxSpeedCausedByTraffic[1],maxSpeedCausedByTraffic[2]);
+                printf("Min speed in lanes is %3.1f, %3.1f, %3.1f \n",minSpeedCausedByTraffic[0],minSpeedCausedByTraffic[1],minSpeedCausedByTraffic[2]);
+                
+                // Find max speed caused by max acceleration
+                double maxSpeedAccel = ref_vel + aMax * .02;
+                
+                // Find min speed caused by max acceleration
+                double minSpeedAccel = ref_vel - aMax * .02;
+                
+                // New reference speed
+                ref_vel = min(maxSpeedAccel,maxSpeedCausedByTraffic[lane]);
+                ref_vel = max(minSpeedAccel,ref_vel);
+                ref_vel = min(ref_vel,max_vel);
+                printf("Current ref speed: %3.1f \n",ref_vel);
+                
+                vector<int> laneSwitchSafe = {0,0,0};
+                if (timeInLane>minTimeInLane)
+                {
+                  // Calculate which lane is safe to switch to
+                  for (int i = 0; i<lane_count; i++)
+                  {
+                    if (i==lane)
+                      laneSwitchSafe[i] = 1;
+                    else
+                      if (abs(i-lane)>1)
+                      { 
+                        // Moving more than one lane over is not allowed!
+                        laneSwitchSafe[i] = 0;
+                      }
+                      else
+                      {
+                        if ((ref_vel<maxSpeedCausedByTraffic[i]) && (ref_vel>minSpeedCausedByTraffic[i]))
+                          laneSwitchSafe[i] = 1;
+                      }  
+                  } 
 
-          	vector<double> next_x_vals;
+                  int desiredLane = lane;
+                  double possibleSpeed = maxSpeedCausedByTraffic[lane];
+                  for (int i = 0; i<lane_count; i++)
+                  {
+                    if (laneSwitchSafe[i]==1)
+                    {
+                      if (maxSpeedCausedByTraffic[i]>(possibleSpeed+0.2))
+                        desiredLane = i;
+                        possibleSpeed = maxSpeedCausedByTraffic[i];
+                    }
+                  }
+
+                  if (desiredLane == lane)
+                    timeInLane += 0.02;
+                  else
+                  {
+                    printf("Switching from lane %d to lane %d \n",lane,desiredLane);
+                    timeInLane = 0.0;
+                    lane = desiredLane;
+                  }
+                }
+                else
+                {
+                  timeInLane += 0.02;
+                }
+                
+                printf("Safe to switch to lanes: %d, %d, %d \n",laneSwitchSafe[0],laneSwitchSafe[1],laneSwitchSafe[2]);
+                printf("Time in lane %3.1f s \n",timeInLane);
+                
+                // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
+                // Later we will interpolate these waypoints with a spline and fill it in with more points
+                
+                vector<double> ptsx;
+                vector<double> ptsy;
+                
+                // Reference x,y,yaw states
+                // either we will reference the starting point as where the car is or at the previous paths and end point
+                double ref_x = car_x;
+                double ref_y = car_y;
+                double ref_yaw = deg2rad(car_yaw);
+                
+                // if previous state is alomst empty, use the car as starting reference
+                if(prev_size < 2)
+                {
+                  // use two points that make the path tangent to the car
+                  double prev_car_x = car_x - cos(car_yaw);
+                  double prev_car_y = car_y - sin(car_yaw);
+                  
+                  ptsx.push_back(prev_car_x);
+                  ptsx.push_back(car_x);
+                  
+                  ptsy.push_back(prev_car_y);
+                  ptsy.push_back(car_y);
+                }
+                // use the previous path's end point as starting reference
+                else
+                {
+                  // Redefine reference state as previous path end point
+                  ref_x = previous_path_x[prev_size-1];
+                  ref_y = previous_path_y[prev_size-1];
+                  
+                  double ref_x_prev = previous_path_x[prev_size-2];
+                  double ref_y_prev = previous_path_y[prev_size-2];
+                  ref_yaw = atan2(ref_y-ref_y_prev,ref_x-ref_x_prev);
+                  
+                  // Use two points that make the path tangent to the previous path's end point
+                  ptsx.push_back(ref_x_prev);
+                  ptsx.push_back(ref_x);
+                  
+                  ptsy.push_back(ref_y_prev);
+                  ptsy.push_back(ref_y);
+                }
+                
+                // In Frenet add evenly 30m spaced points ahead of the starting reference
+                vector<double> next_wp0 = getXY(car_s+30,(2+lane_width*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+                vector<double> next_wp1 = getXY(car_s+60,(2+lane_width*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+                vector<double> next_wp2 = getXY(car_s+90,(2+lane_width*lane),map_waypoints_s,map_waypoints_x,map_waypoints_y);
+                
+                ptsx.push_back(next_wp0[0]);
+                ptsx.push_back(next_wp1[0]);
+                ptsx.push_back(next_wp2[0]);
+                
+                ptsy.push_back(next_wp0[1]);
+                ptsy.push_back(next_wp1[1]);
+                ptsy.push_back(next_wp2[1]);
+                
+                for (int i=0; i<ptsx.size(); i++)
+                {
+                  double shift_x = ptsx[i]-ref_x;
+                  double shift_y = ptsy[i]-ref_y;
+                  ptsx[i] = (shift_x * cos(0-ref_yaw)-shift_y*sin(0-ref_yaw));
+                  ptsy[i] = (shift_x * sin(0-ref_yaw)+shift_y*cos(0-ref_yaw));
+                }
+                
+                // Create a spline object
+                tk::spline s;
+                
+                // Set (x,y) points to the spline
+                s.set_points(ptsx,ptsy);
+                
+                // Define the actual (x,y) points we will use for the planner
+                vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
+                // Start with all of the previous path points from last time
+                for(int i=0; i<previous_path_x.size(); i++)
+                {
+                  next_x_vals.push_back(previous_path_x[i]);
+                  next_y_vals.push_back(previous_path_y[i]);
+                }
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+                // Calculate how to break up spline points so that we travel at our desired reference velocity
+                double target_x = 30.0;
+                double target_y = s(target_x);
+                double target_dist = sqrt((target_x)*(target_x)+(target_y)*(target_y));
+                
+                double x_add_on = 0;
+                
+                // Fill up the rest of our path planner after filling it with previous points
+                for (int i=1; i<= 30-previous_path_x.size(); i++)
+                {
+                  double N = (target_dist/(.02*ref_vel));
+                  double x_point = x_add_on+(target_x)/N;
+                  double y_point = s(x_point);
+                  
+                  x_add_on = x_point;
+                  
+                  double x_ref = x_point;
+                  double y_ref = y_point;
+                  
+                  // Rotate back to normal after rotating it earlier
+                  x_point = (x_ref*cos(ref_yaw)-y_ref*sin(ref_yaw));
+                  y_point = (x_ref*sin(ref_yaw)+y_ref*cos(ref_yaw));
+                  
+                  x_point += ref_x;
+                  y_point += ref_y;
+                  
+                  next_x_vals.push_back(x_point);
+                  next_y_vals.push_back(y_point);
+                }
+                 
+          	json msgJson;
+                
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
