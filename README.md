@@ -1,5 +1,19 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
+
+### Where I have left David and Aaron's Code Walkthrough
+
+## Limiting the reference/target speed due to traffic ahead
+
+- Premises:
+-- Keep a safe distance to vehicle ahead (driving schools in Germany teach d_min = v [km/h] * 0.5 [h*m/km], which equals 1.8 seconds)
+-- Avoid decceleration of more than 4 m/s^2 (rubric sets 10 m/s^2)  
+- Calculate the residual distance to the vehicle ahead
+- Calculate the required time to deccelerate from own velocity to the velocity of the vehicle ahead
+- Calculate how much distance own vehicle and vehicle ahead travels during that time
+- Form a single equation v_max = (v_traffic,dist_traffic,min_dist_in_s,a_max)
+
+![Analytic considerations on collision prevention](IMG_0005.png "Handwritten equations")
    
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases).
