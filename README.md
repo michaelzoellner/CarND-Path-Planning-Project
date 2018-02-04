@@ -14,6 +14,9 @@ Self-Driving Car Engineer Nanodegree Program
 - Form a single equation v_max = (v_traffic,dist_traffic,min_dist_in_s,a_max)
 
 ![Analytic considerations on collision prevention](IMG_0005.png "Handwritten equations")
+
+
+![Safe lane speed consideration](IMG_0006.png)
    
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases).
