@@ -33,12 +33,13 @@ put up two formulas to deal with this question.
 
 * Premises:
   * Keep a safe distance to vehicle ahead (driving schools in Germany teach d_min = v [km/h] * 0.5 [h*m/km], which equals 1.8 seconds)
-  * Avoid decceleration of more than 4 m/s^2 (compare to rubric's total maximum of 10 m/s^2)  
-* Calculate the residual distance to the vehicle ahead
-* Calculate the required time to deccelerate from own velocity to the velocity of the vehicle ahead
-* Calculate how much distance own vehicle and vehicle ahead travels during that time
-* Form a single equation v_max = (v_traffic,dist_traffic,min_dist_in_s,a_max)
-* Permute the equation to calculate the v_min (considering the traffic behind you, needed to avoid cutting people on lane changes)
+  * Avoid decceleration of more than 3 m/s^2 (compare to rubric's total maximum of 10 m/s^2)  
+* Approach:
+  * Calculate the residual distance to the vehicle ahead
+  * Calculate the required time to deccelerate from own velocity to the velocity of the vehicle ahead
+  * Calculate how much distance own vehicle and vehicle ahead travels during that time
+  * Form a single equation v_max = (v_traffic,dist_traffic,min_dist_in_s,a_max)
+  * Permute the equation to calculate the v_min (considering the traffic behind you, needed to avoid cutting people on lane changes)
 
 My handwritten notes deal with the physics and algebra of the problem:
 
