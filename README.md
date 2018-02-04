@@ -24,26 +24,47 @@ returned quite impressive results concerning jerk minimization.
 At some points though, I wanted or even had to leave their code walkthrough and 
 implement my own ideas.
 
-### Limiting the reference/target speed due to traffic ahead
+### Finding the reference/target speed due to traffic ahead
 
 David and Aaron adapt the vehicles target speed to traffic ahead in a rather 
 simple way, aiming at a fixed distance to the leading vehicle. Instead of this, 
 I wrote down a couple premises that relate to real world driving practice and 
 put up two formulas to deal with this question.
 
-. Premises:
-.. Keep a safe distance to vehicle ahead (driving schools in Germany teach d_min = v [km/h] * 0.5 [h*m/km], which equals 1.8 seconds)
-.. Avoid decceleration of more than 4 m/s^2 (rubric sets 10 m/s^2)  
-- Calculate the residual distance to the vehicle ahead
-- Calculate the required time to deccelerate from own velocity to the velocity of the vehicle ahead
-- Calculate how much distance own vehicle and vehicle ahead travels during that time
-- Form a single equation v_max = (v_traffic,dist_traffic,min_dist_in_s,a_max)
+* Premises:
+  * Keep a safe distance to vehicle ahead (driving schools in Germany teach d_min = v [km/h] * 0.5 [h*m/km], which equals 1.8 seconds)
+  * Avoid decceleration of more than 4 m/s^2 (compare to rubric's total maximum of 10 m/s^2)  
+* Calculate the residual distance to the vehicle ahead
+* Calculate the required time to deccelerate from own velocity to the velocity of the vehicle ahead
+* Calculate how much distance own vehicle and vehicle ahead travels during that time
+* Form a single equation v_max = (v_traffic,dist_traffic,min_dist_in_s,a_max)
+* Permute the equation to calculate the v_min (considering the traffic behind you, needed to avoid cutting people on lane changes)
+
+My handwritten notes deal with the physics and algebra of the problem:
 
 ![Analytic considerations on collision prevention](IMG_0005.png "Handwritten equations")
 
+### Assessing safe lane changes and deciding where to go
+
+The presented equations are then used to calculate the maximum or minimum 
+velocities in each lane with respect to the vehicles ahead or behind the own 
+vehicle. By comparing these speeds to the own velocities, changes to the 
+adjacent lanes are considered as safe or unsafe.
+
+The applied, very simple version of a behavior planner would execute a lane 
+change if 
+* it is safe to change to that lane (v_min < v_ref < v_max for that lane)
+* the maximum possible speed at that lane is higher than in the current lane
+* a minimum time of 2 seconds was spent in the current lane (avoid hecticness)
+
+Again, a handwritten sketch can serve for illustration. In the situation 
+depicted, the vehicle has reached the maximum possible speed in the upper lane. 
+As the bottom lane allows a higher speed (vehicle ahead is further and faster), 
+the behavior planner would initiate the lane change.
 
 ![Safe lane speed consideration](IMG_0006.png)
-   
+
+
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases).
 
