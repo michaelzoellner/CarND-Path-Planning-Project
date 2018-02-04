@@ -1,13 +1,39 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
 
-### Where I have left David and Aaron's Code Walkthrough
+## My solution
 
-## Limiting the reference/target speed due to traffic ahead
+The path planning project spans quite a large number of concepts shown in the 
+classrooms. Disciplines like search, prediction and finite-state machine based 
+behavior planning algorithms are all huge fields work on their own. With the 
+concepts presented in the classroom being very interesting yet ambitious, 
+discomfort raised in me realizing that they would all be covered in this 
+project.
 
-- Premises:
--- Keep a safe distance to vehicle ahead (driving schools in Germany teach d_min = v [km/h] * 0.5 [h*m/km], which equals 1.8 seconds)
--- Avoid decceleration of more than 4 m/s^2 (rubric sets 10 m/s^2)  
+Luckily, a code walkthrough was presented by David Silver and Aaron Brown, that 
+offered a very pragmatic approach to the problem. It was a little sad 
+not to implement a clean, object-oriented piece of software that reflects the 
+more scientific algorithms shown by the Mercedes-Benz lecturers, but I decided to 
+follow David and Aaron's path for most of the way. The benefit-cost analysis 
+just turned out too well for their approach. Especially the application of the 
+spline function to follow the highway route as well as to realize lane changes 
+returned quite impressive results concerning jerk minimization.
+
+## Where I have left David and Aaron's Code Walkthrough
+
+At some points though, I wanted or even had to leave their code walkthrough and 
+implement my own ideas.
+
+### Limiting the reference/target speed due to traffic ahead
+
+David and Aaron adapt the vehicles target speed to traffic ahead in a rather 
+simple way, aiming at a fixed distance to the leading vehicle. Instead of this, 
+I wrote down a couple premises that relate to real world driving practice and 
+put up two formulas to deal with this question.
+
+. Premises:
+.. Keep a safe distance to vehicle ahead (driving schools in Germany teach d_min = v [km/h] * 0.5 [h*m/km], which equals 1.8 seconds)
+.. Avoid decceleration of more than 4 m/s^2 (rubric sets 10 m/s^2)  
 - Calculate the residual distance to the vehicle ahead
 - Calculate the required time to deccelerate from own velocity to the velocity of the vehicle ahead
 - Calculate how much distance own vehicle and vehicle ahead travels during that time
